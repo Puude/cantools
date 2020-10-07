@@ -19,18 +19,27 @@ def _mo_unpack(mo):
     frame_id = '0' * (8 - len(frame_id)) + frame_id
     frame_id = binascii.unhexlify(frame_id)
     frame_id = struct.unpack('>I', frame_id)[0]
+    if png_search:
+        frame_id = frame_id | 254
     data = mo.group(2)
     data = data.replace(' ', '')
+    # Control if 64 bits are received
+    if not len(data) == 16:
+        for x in range((16-len(data))):
+            data += 'F'
     data = binascii.unhexlify(data)
-
     return frame_id, data
 
 
 def _do_decode(args):
+    global png_search
+    png_search = args.png_search
+
     dbase = database.load_file(args.database,
                                encoding=args.encoding,
                                frame_id_mask=args.frame_id_mask,
-                               strict=not args.no_strict)
+                               strict=not args.no_strict
+                              )
     decode_choices = not args.no_decode_choices
     re_format = None
 
@@ -40,7 +49,6 @@ def _do_decode(args):
         # Break at EOF.
         if not line:
             break
-
         line = line.strip('\r\n')
 
         # Auto-detect on first valid line.
@@ -65,8 +73,7 @@ def _do_decode(args):
                                                data,
                                                decode_choices,
                                                args.single_line)
-
-        print(line)
+            print(line)
 
 
 def add_subparser(subparsers):
@@ -89,6 +96,10 @@ def add_subparser(subparsers):
         '--no-strict',
         action='store_true',
         help='Skip database consistency checks.')
+    decode_parser.add_argument(
+        '-png', '--png-search',
+        action='store_true',
+        help='When using a 1939 dbc file, the decoder just look to the PNG id number')
     decode_parser.add_argument(
         '-m', '--frame-id-mask',
         type=Integer(0),
